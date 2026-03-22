@@ -1,6 +1,7 @@
 {
-  "buildCommand": "vite build",
+  "buildCommand": "npx vite build",
   "outputDirectory": "dist",
+  "framework": null,
   "rewrites": [
     { "source": "/api/gdacs", "destination": "/api/gdacs" },
     { "source": "/api/reliefweb", "destination": "/api/reliefweb" },
