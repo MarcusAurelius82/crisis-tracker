@@ -1,0 +1,5 @@
+{
+  "name": "CRISIS_TRACKER_v1.0",
+  "description": "A real-time global humanitarian crisis monitoring platform, visualizing active disasters, conflicts, and relief efforts using live data streams.",
+  "requestFramePermissions": ["geolocation"]
+}
