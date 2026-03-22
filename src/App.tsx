@@ -293,7 +293,7 @@ export default function App() {
             <Globe 
               activeCrises={filteredCrises} 
               onCrisisSelect={setSelectedCrisis}
-              rotationSpeed={0.01}
+              rotationSpeed={0.3}
               theme={theme}
             />
           </div>
