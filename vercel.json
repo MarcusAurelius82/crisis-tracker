@@ -1,0 +1,9 @@
+{
+  "buildCommand": "vite build",
+  "outputDirectory": "dist",
+  "rewrites": [
+    { "source": "/api/gdacs", "destination": "/api/gdacs" },
+    { "source": "/api/reliefweb", "destination": "/api/reliefweb" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
