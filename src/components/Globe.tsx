@@ -22,7 +22,7 @@ export const Globe: React.FC<GlobeProps> = ({
   const rotationRef = useRef<[number, number, number]>([0, -30, 0]);
   const scaleRef = useRef<number>(250);
   const isInteracting = useRef(false);
-  const lastInteractionTime = useRef(Date.now());
+  const lastInteractionTime = useRef(0);
 
   // Load GeoJSON once
   useEffect(() => {
