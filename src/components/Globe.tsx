@@ -119,7 +119,7 @@ export const Globe: React.FC<GlobeProps> = ({
         const now = Date.now();
         // Only auto-rotate if not interacting and it's been 30 seconds since last interaction
         if (!isInteracting.current && (now - lastInteractionTime.current > 5000)) {
-          rotationRef.current[0] += rotationSpeed * 10;
+          rotationRef.current[0] += rotationSpeed;
         }
         
         projection.rotate(rotationRef.current);
