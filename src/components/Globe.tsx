@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { select, geoOrthographic, geoPath, geoGraticule, geoDistance, json, drag, zoom, zoomIdentity } from 'd3';
+import { select, geoOrthographic, geoPath, geoGraticule, geoDistance, json, zoom, zoomIdentity } from 'd3';
 import { RefreshCw } from 'lucide-react';
 import { Crisis } from '../types';
 
@@ -75,39 +75,43 @@ export const Globe: React.FC<GlobeProps> = ({
     const landLayer = svg.selectAll('.land').data([null]).join('g').attr('class', 'land');
     const crisisLayer = svg.selectAll('.crises').data([null]).join('g').attr('class', 'crises');
 
-    const dragBehavior = drag<SVGSVGElement, unknown>()
-      .on('start', () => { 
-        isInteracting.current = true; 
-        lastInteractionTime.current = Date.now();
-      })
-      .on('drag', (event) => {
-        lastInteractionTime.current = Date.now();
-        const sensitivity = 0.25 * (250 / scaleRef.current);
-        rotationRef.current[0] += event.dx * sensitivity;
-        rotationRef.current[1] -= event.dy * sensitivity;
-        rotationRef.current[1] = Math.max(-90, Math.min(90, rotationRef.current[1]));
-      })
-      .on('end', () => { 
-        isInteracting.current = false; 
-        lastInteractionTime.current = Date.now();
-      });
+    let prevX = 0;
+    let prevY = 0;
+    let prevK = scaleRef.current;
 
     const zoomBehavior = zoom<SVGSVGElement, unknown>()
       .scaleExtent([150, 5000])
-      .on('start', () => {
+      .on('start', (event) => {
         isInteracting.current = true;
         lastInteractionTime.current = Date.now();
+        prevX = event.transform.x;
+        prevY = event.transform.y;
+        prevK = event.transform.k;
       })
       .on('zoom', (event) => {
         lastInteractionTime.current = Date.now();
+        const dx = event.transform.x - prevX;
+        const dy = event.transform.y - prevY;
+        const scaleDelta = Math.abs(event.transform.k - prevK);
+
+        // Only rotate on drag (not pinch — pinch changes scale significantly)
+        if (scaleDelta < 1) {
+          const sensitivity = 0.25 * (250 / scaleRef.current);
+          rotationRef.current[0] += dx * sensitivity;
+          rotationRef.current[1] -= dy * sensitivity;
+          rotationRef.current[1] = Math.max(-90, Math.min(90, rotationRef.current[1]));
+        }
+
         scaleRef.current = event.transform.k;
+        prevX = event.transform.x;
+        prevY = event.transform.y;
+        prevK = event.transform.k;
       })
       .on('end', () => {
         isInteracting.current = false;
         lastInteractionTime.current = Date.now();
       });
 
-    svg.call(dragBehavior as any);
     svg.call(zoomBehavior as any);
     svg.call(zoomBehavior.transform as any, zoomIdentity.translate(0, 0).scale(scaleRef.current));
 
