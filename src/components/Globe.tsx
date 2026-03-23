@@ -265,7 +265,7 @@ export const Globe: React.FC<GlobeProps> = ({
         height="600"
         viewBox="0 0 600 600"
         className="w-full h-full cursor-grab active:cursor-grabbing transition-opacity duration-1000 overflow-visible"
-        style={{ opacity: geoData ? 1 : 0 }}
+        style={{ opacity: geoData ? 1 : 0, touchAction: 'none' }}
       />
 
       <div className={`absolute inset-0 pointer-events-none ${
