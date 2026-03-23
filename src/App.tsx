@@ -216,7 +216,7 @@ export default function App() {
   };
 
   return (
-    <div className={`h-screen flex flex-col font-mono selection:bg-orange-500 selection:text-black relative transition-colors duration-500 ${
+    <div className={`flex flex-col font-mono selection:bg-orange-500 selection:text-black relative transition-colors duration-500 sm:h-screen ${
       theme === 'dark' ? 'bg-neutral-950 text-orange-500' : 'bg-stone-50 text-stone-900'
     }`}>
       {/* HUD Scanlines */}
@@ -286,7 +286,7 @@ export default function App() {
         </div>
       </header>
 
-      <main className={`flex-1 flex flex-col gap-2 sm:gap-0 sm:block relative overflow-y-auto sm:overflow-hidden min-h-0 transition-colors duration-500 ${theme === 'dark' ? 'bg-neutral-950' : 'bg-stone-50'}`}>
+      <main className={`sm:flex-1 flex flex-col gap-2 sm:gap-0 sm:block relative sm:overflow-hidden sm:min-h-0 transition-colors duration-500 ${theme === 'dark' ? 'bg-neutral-950' : 'bg-stone-50'}`}>
         {/* Globe Container - Middle on Mobile, Full Screen on Desktop */}
         <div className="order-3 sm:order-none h-[350px] sm:h-auto sm:flex-1 flex items-center justify-center relative sm:absolute sm:inset-0 sm:pointer-events-none">
           <div className="w-[min(85vw,85vh,800px)] aspect-square relative pointer-events-auto">
@@ -305,7 +305,7 @@ export default function App() {
 
         {/* Corner 1: Top Left - Critical Alerts */}
         <div 
-          className={`order-1 sm:order-none relative sm:absolute sm:top-6 sm:left-6 mx-4 mt-4 sm:mx-0 sm:mt-0 sm:w-72 backdrop-blur-md border rounded flex flex-col overflow-hidden z-20 transition-all duration-500 ${
+          className={`order-1 sm:order-none relative sm:absolute sm:top-6 sm:left-6 mx-4 mt-4 sm:mx-0 sm:mt-0 sm:w-72 shrink-0 sm:shrink backdrop-blur-md border rounded flex flex-col overflow-hidden z-20 transition-all duration-500 ${
             expanded.alerts ? 'sm:max-h-[40%]' : 'sm:max-h-[56px]'
           } ${theme === 'dark' ? 'bg-black/60 border-red-500/20' : 'bg-white/80 border-red-200 shadow-sm'}`}
         >
@@ -356,7 +356,7 @@ export default function App() {
 
         {/* Corner 2: Top Right - System Logs */}
         <div 
-          className={`order-2 sm:order-none relative sm:absolute sm:top-6 sm:right-6 mx-4 mt-2 sm:mx-0 sm:mt-0 sm:w-72 backdrop-blur-md border rounded flex flex-col overflow-hidden z-20 transition-all duration-500 ${
+          className={`order-2 sm:order-none relative sm:absolute sm:top-6 sm:right-6 mx-4 mt-2 sm:mx-0 sm:mt-0 sm:w-72 shrink-0 sm:shrink backdrop-blur-md border rounded flex flex-col overflow-hidden z-20 transition-all duration-500 ${
             expanded.logs ? 'sm:max-h-[40%]' : 'sm:max-h-[56px]'
           } ${theme === 'dark' ? 'bg-black/60 border-orange-500/20' : 'bg-white/80 border-stone-200 shadow-sm'}`}
         >
@@ -393,7 +393,7 @@ export default function App() {
 
         {/* Corner 3: Bottom Left - Event Feed & Search */}
         <div 
-          className={`order-4 sm:order-none relative sm:absolute sm:bottom-6 sm:left-6 mx-4 mt-4 sm:mx-0 sm:mt-0 sm:w-80 backdrop-blur-md border rounded flex flex-col overflow-hidden z-20 transition-all duration-500 ${
+          className={`order-4 sm:order-none relative sm:absolute sm:bottom-6 sm:left-6 mx-4 mt-4 sm:mx-0 sm:mt-0 sm:w-80 shrink-0 sm:shrink backdrop-blur-md border rounded flex flex-col overflow-hidden z-20 transition-all duration-500 ${
             expanded.feed ? 'sm:max-h-[45%]' : 'sm:max-h-[56px]'
           } ${theme === 'dark' ? 'bg-black/60 border-orange-500/20' : 'bg-white/80 border-stone-200 shadow-sm'}`}
         >
@@ -485,7 +485,7 @@ export default function App() {
 
         {/* Corner 4: Bottom Right - Global Metrics */}
         <div 
-          className={`order-5 sm:order-none relative sm:absolute sm:bottom-6 sm:right-6 mx-4 mt-2 mb-4 sm:mx-0 sm:mt-0 sm:mb-0 sm:w-80 backdrop-blur-md border rounded flex flex-col overflow-hidden z-20 transition-all duration-500 ${
+          className={`order-5 sm:order-none relative sm:absolute sm:bottom-6 sm:right-6 mx-4 mt-2 mb-4 sm:mx-0 sm:mt-0 sm:mb-0 sm:w-80 shrink-0 sm:shrink backdrop-blur-md border rounded flex flex-col overflow-hidden z-20 transition-all duration-500 ${
             expanded.metrics ? 'sm:max-h-[45%]' : 'sm:max-h-[56px]'
           } ${theme === 'dark' ? 'bg-black/60 border-orange-500/20' : 'bg-white/80 border-stone-200 shadow-sm'}`}
         >
