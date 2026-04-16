@@ -32,6 +32,7 @@ export default function App() {
   const [selectedCrisis, setSelectedCrisis] = useState<Crisis | null>(null);
   const [loading, setLoading] = useState(true);
   const [theme, setTheme] = useState<'dark' | 'light'>('light');
+  const [showFamineOverlay, setShowFamineOverlay] = useState(false);
   const [logs, setLogs] = useState<{msg: string; time: Date}[]>([
     {msg: 'Initializing monitoring systems...', time: new Date()},
     {msg: 'Connecting to GDACS...', time: new Date()},
@@ -265,11 +266,21 @@ export default function App() {
         </div>
 
         <div className="flex items-center gap-6">
-          <button 
+          <button
+            onClick={() => setShowFamineOverlay(f => !f)}
+            className={`px-3 py-1.5 rounded border text-[11px] font-bold uppercase tracking-wider transition-all ${
+              showFamineOverlay
+                ? (theme === 'dark' ? 'border-amber-500 bg-amber-500/20 text-amber-400' : 'border-amber-600 bg-amber-50 text-amber-700')
+                : (theme === 'dark' ? 'border-orange-500/20 bg-orange-500/10 text-orange-400 hover:bg-orange-500/20' : 'border-stone-200 bg-stone-100 text-stone-600 hover:bg-stone-200')
+            }`}
+          >
+            Famine overlay
+          </button>
+          <button
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
             className={`p-2 rounded-full border transition-all ${
-              theme === 'dark' 
-                ? 'border-orange-500/20 bg-orange-500/10 text-orange-400 hover:bg-orange-500/20' 
+              theme === 'dark'
+                ? 'border-orange-500/20 bg-orange-500/10 text-orange-400 hover:bg-orange-500/20'
                 : 'border-stone-200 bg-stone-100 text-stone-600 hover:bg-stone-200'
             }`}
           >
@@ -290,11 +301,12 @@ export default function App() {
         {/* Globe Container - Middle on Mobile, Full Screen on Desktop */}
         <div className="order-3 sm:order-none h-[350px] sm:h-auto sm:flex-1 flex items-center justify-center relative sm:absolute sm:inset-0 sm:pointer-events-none">
           <div className="w-[min(85vw,85vh,800px)] aspect-square relative pointer-events-auto">
-            <Globe 
-              activeCrises={filteredCrises} 
+            <Globe
+              activeCrises={filteredCrises}
               onCrisisSelect={setSelectedCrisis}
               rotationSpeed={0.3}
               theme={theme}
+              showFamineOverlay={showFamineOverlay}
             />
           </div>
         </div>

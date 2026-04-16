@@ -8,13 +8,23 @@ interface GlobeProps {
   onCrisisSelect?: (crisis: Crisis | null) => void;
   activeCrises: Crisis[];
   theme?: 'dark' | 'light';
+  showFamineOverlay: boolean;
 }
 
-export const Globe: React.FC<GlobeProps> = ({ 
-  rotationSpeed = 0.02, 
+const PHASE_COLORS: Record<number, string> = {
+  1: '#d4f0a0',
+  2: '#f9e04b',
+  3: '#e8852a',
+  4: '#c0302b',
+  5: '#7a1428'
+};
+
+export const Globe: React.FC<GlobeProps> = ({
+  rotationSpeed = 0.02,
   activeCrises = [],
   onCrisisSelect,
-  theme = 'dark'
+  theme = 'dark',
+  showFamineOverlay = false
 }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const [geoData, setGeoData] = useState<any>(null);
@@ -25,14 +35,17 @@ export const Globe: React.FC<GlobeProps> = ({
   const lastInteractionTime = useRef(0);
   const activeCrisesRef = useRef(activeCrises);
   const onCrisisSelectRef = useRef(onCrisisSelect);
+  const showFamineOverlayRef = useRef(showFamineOverlay);
+  const ipcDataRef = useRef<Record<string, number>>({});
 
   // Keep refs in sync with props
   useEffect(() => { activeCrisesRef.current = activeCrises; }, [activeCrises]);
   useEffect(() => { onCrisisSelectRef.current = onCrisisSelect; }, [onCrisisSelect]);
+  useEffect(() => { showFamineOverlayRef.current = showFamineOverlay; }, [showFamineOverlay]);
 
   // Load GeoJSON once
   useEffect(() => {
-    const worldUrl = 'https://raw.githubusercontent.com/holtzy/D3-graph-gallery/master/DATA/world.geojson';
+    const worldUrl = 'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_admin_0_countries.geojson';
     json(worldUrl)
       .then(data => setGeoData(data))
       .catch(err => {
@@ -42,7 +55,7 @@ export const Globe: React.FC<GlobeProps> = ({
           features: [
             {
               type: "Feature",
-              properties: { name: "Fallback Land" },
+              properties: { ISO_A3: "FALLBACK" },
               geometry: {
                 type: "Polygon",
                 coordinates: [[[-180, -90], [180, -90], [180, 90], [-180, 90], [-180, -90]]]
@@ -54,6 +67,43 @@ export const Globe: React.FC<GlobeProps> = ({
       });
   }, []);
 
+  // Fetch and parse IPC CSV on mount
+  useEffect(() => {
+    fetch('/ipc.csv')
+      .then(res => res.text())
+      .then(text => {
+        const lines = text.split('\n').filter(l => l.trim());
+        if (lines.length < 2) return;
+        const headers = lines[0].split(',');
+        const countryIdx = headers.indexOf('Country');
+        const phase5Idx = headers.indexOf('Phase 5 number current');
+        const phase4Idx = headers.indexOf('Phase 4 number current');
+        const phase3Idx = headers.indexOf('Phase 3 number current');
+        const phase2Idx = headers.indexOf('Phase 2 number current');
+
+        const lookup: Record<string, number> = {};
+        for (let i = 1; i < lines.length; i++) {
+          const cols = lines[i].split(',');
+          const iso3 = cols[countryIdx]?.trim();
+          if (!iso3) continue;
+          const p5 = parseFloat(cols[phase5Idx]) || 0;
+          const p4 = parseFloat(cols[phase4Idx]) || 0;
+          const p3 = parseFloat(cols[phase3Idx]) || 0;
+          const p2 = parseFloat(cols[phase2Idx]) || 0;
+
+          let phase = 1;
+          if (p5 > 0) phase = 5;
+          else if (p4 > 0) phase = 4;
+          else if (p3 > 0) phase = 3;
+          else if (p2 > 0) phase = 2;
+
+          lookup[iso3] = phase;
+        }
+        ipcDataRef.current = lookup;
+      })
+      .catch(err => console.error("Error loading IPC data:", err));
+  }, []);
+
   // Animation and Render loop — only restarts when geoData, rotationSpeed, or theme changes
   useEffect(() => {
     if (!svgRef.current || !geoData) return;
@@ -61,7 +111,7 @@ export const Globe: React.FC<GlobeProps> = ({
     const width = 600;
     const height = 600;
     const svg = select(svgRef.current);
-    
+
     const projection = geoOrthographic()
       .scale(250)
       .translate([width / 2, height / 2])
@@ -73,6 +123,7 @@ export const Globe: React.FC<GlobeProps> = ({
     const sphereLayer = svg.selectAll('.sphere').data([null]).join('path').attr('class', 'sphere');
     const graticuleLayer = svg.selectAll('.graticule').data([null]).join('path').attr('class', 'graticule');
     const landLayer = svg.selectAll('.land').data([null]).join('g').attr('class', 'land');
+    const ipcLayer = svg.selectAll('.ipc').data([null]).join('g').attr('class', 'ipc');
     const crisisLayer = svg.selectAll('.crises').data([null]).join('g').attr('class', 'crises');
 
     let prevX = 0;
@@ -123,7 +174,7 @@ export const Globe: React.FC<GlobeProps> = ({
         if (!isInteracting.current && (now - lastInteractionTime.current > 5000)) {
           rotationRef.current[0] += rotationSpeed;
         }
-        
+
         projection.rotate(rotationRef.current);
         projection.scale(scaleRef.current);
 
@@ -150,6 +201,25 @@ export const Globe: React.FC<GlobeProps> = ({
           .attr('stroke', theme === 'dark' ? 'rgba(249,115,22,0.5)' : 'rgba(0,0,0,0.4)')
           .attr('stroke-width', theme === 'dark' ? 0.8 : 1.5);
 
+        ipcLayer
+          .selectAll('path')
+          .data(geoData.features)
+          .join('path')
+          .attr('d', path as any)
+          .attr('fill', (d: any) => {
+            if (!showFamineOverlayRef.current) return 'transparent';
+            const iso3 = d.properties?.ISO_A3;
+            const phase = ipcDataRef.current[iso3];
+            return phase ? PHASE_COLORS[phase] : 'transparent';
+          })
+          .attr('fill-opacity', (d: any) => {
+            if (!showFamineOverlayRef.current) return 0;
+            const iso3 = d.properties?.ISO_A3;
+            return ipcDataRef.current[iso3] ? 0.4 : 0;
+          })
+          .attr('stroke', 'none')
+          .attr('pointer-events', 'none');
+
         // Use ref so this doesn't break the render loop when crises update
         const visibleCrises = activeCrisesRef.current.filter(crisis => {
           const p = projection([crisis.lng, crisis.lat]);
@@ -175,7 +245,7 @@ export const Globe: React.FC<GlobeProps> = ({
 
         const markers = crisisLayer.selectAll('.marker').data(visibleCrises, (d: any) => d.id);
         const markersEnter = markers.enter().append('g').attr('class', 'marker');
-        
+
         markersEnter.append('line').attr('class', 'pin-stem');
         markersEnter.append('circle').attr('class', 'pin-badge');
         markersEnter.append('path').attr('class', 'pin-icon');
@@ -199,24 +269,24 @@ export const Globe: React.FC<GlobeProps> = ({
             const pinHeight = 18 * zoomFactor;
             const badgeRadius = 8 * zoomFactor;
             const iconScale = 1.2 * zoomFactor;
-            
+
             g.select('.pin-stem')
               .attr('x1', p[0]).attr('y1', p[1])
               .attr('x2', p[0]).attr('y2', p[1] - pinHeight)
               .attr('stroke', color).attr('stroke-width', 1.5 * zoomFactor).attr('opacity', 0.8);
-            
+
             g.select('.pin-badge')
               .attr('cx', p[0]).attr('cy', p[1] - pinHeight).attr('r', badgeRadius)
               .attr('fill', theme === 'dark' ? '#000' : '#fff')
               .attr('stroke', color).attr('stroke-width', 1.5 * zoomFactor).attr('opacity', 1);
-            
+
             g.select('.pin-icon')
               .attr('d', getIconPath(d.type))
               .attr('transform', `translate(${p[0]}, ${p[1] - pinHeight}) scale(${iconScale})`)
               .attr('fill', 'none').attr('stroke', color)
               .attr('stroke-width', 1.2).attr('stroke-linecap', 'round')
               .attr('stroke-linejoin', 'round').attr('opacity', 1);
-            
+
             g.select('.hit-area')
               .attr('cx', p[0]).attr('cy', p[1] - pinHeight).attr('r', 15 * zoomFactor);
           }
@@ -273,8 +343,8 @@ export const Globe: React.FC<GlobeProps> = ({
       />
 
       <div className={`absolute inset-0 pointer-events-none ${
-        theme === 'dark' 
-          ? 'bg-[radial-gradient(circle_at_center,rgba(249,115,22,0.08)_0%,transparent_70%)]' 
+        theme === 'dark'
+          ? 'bg-[radial-gradient(circle_at_center,rgba(249,115,22,0.08)_0%,transparent_70%)]'
           : 'bg-[radial-gradient(circle_at_center,rgba(0,0,0,0.02)_0%,transparent_70%)]'
       }`} />
     </div>
