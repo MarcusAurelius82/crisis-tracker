@@ -11,13 +11,40 @@ interface GlobeProps {
   showFamineOverlay: boolean;
 }
 
+interface IpcEntry {
+  phase: number;
+  dateOfAnalysis: string;
+  populationAnalyzed: number;
+  phase3Plus: number;
+  phase3PlusPct: number;
+  phase1: number; phase1Pct: number;
+  phase2: number; phase2Pct: number;
+  phase3: number; phase3Pct: number;
+  phase4: number; phase4Pct: number;
+  phase5: number; phase5Pct: number;
+}
+
 const PHASE_COLORS: Record<number, string> = {
   1: '#d4f0a0',
   2: '#f9e04b',
   3: '#e8852a',
   4: '#c0302b',
-  5: '#7a1428'
+  5: '#7a1428',
 };
+
+const PHASE_LABELS: Record<number, string> = {
+  1: 'Minimal',
+  2: 'Stressed',
+  3: 'Crisis',
+  4: 'Emergency',
+  5: 'Famine',
+};
+
+function formatPop(n: number): string {
+  if (n >= 1e6) return `${(n / 1e6).toFixed(1)}M`;
+  if (n >= 1e3) return `${(n / 1e3).toFixed(0)}K`;
+  return String(n);
+}
 
 export const Globe: React.FC<GlobeProps> = ({
   rotationSpeed = 0.02,
@@ -36,12 +63,22 @@ export const Globe: React.FC<GlobeProps> = ({
   const activeCrisesRef = useRef(activeCrises);
   const onCrisisSelectRef = useRef(onCrisisSelect);
   const showFamineOverlayRef = useRef(showFamineOverlay);
-  const ipcDataRef = useRef<Record<string, number>>({});
+  const ipcDataRef = useRef<Record<string, IpcEntry>>({});
+  const hidePopupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [ipcPopup, setIpcPopup] = useState<{
+    iso3: string;
+    name: string;
+    entry: IpcEntry;
+    x: number;
+    y: number;
+  } | null>(null);
 
   // Keep refs in sync with props
   useEffect(() => { activeCrisesRef.current = activeCrises; }, [activeCrises]);
   useEffect(() => { onCrisisSelectRef.current = onCrisisSelect; }, [onCrisisSelect]);
   useEffect(() => { showFamineOverlayRef.current = showFamineOverlay; }, [showFamineOverlay]);
+  useEffect(() => { if (!showFamineOverlay) setIpcPopup(null); }, [showFamineOverlay]);
 
   // Load GeoJSON once
   useEffect(() => {
@@ -52,16 +89,14 @@ export const Globe: React.FC<GlobeProps> = ({
         console.error("Error loading GeoJSON:", err);
         setGeoData({
           type: "FeatureCollection",
-          features: [
-            {
-              type: "Feature",
-              properties: { ISO_A3: "FALLBACK" },
-              geometry: {
-                type: "Polygon",
-                coordinates: [[[-180, -90], [180, -90], [180, 90], [-180, 90], [-180, -90]]]
-              }
+          features: [{
+            type: "Feature",
+            properties: { ISO_A3: "FALLBACK", NAME: "Fallback Land" },
+            geometry: {
+              type: "Polygon",
+              coordinates: [[[-180, -90], [180, -90], [180, 90], [-180, 90], [-180, -90]]]
             }
-          ]
+          }]
         });
         setError("Map data sync failed. Using low-res fallback.");
       });
@@ -75,29 +110,37 @@ export const Globe: React.FC<GlobeProps> = ({
         const lines = text.split('\n').filter(l => l.trim());
         if (lines.length < 2) return;
         const headers = lines[0].split(',');
-        const countryIdx = headers.indexOf('Country');
-        const phase5Idx = headers.indexOf('Phase 5 number current');
-        const phase4Idx = headers.indexOf('Phase 4 number current');
-        const phase3Idx = headers.indexOf('Phase 3 number current');
-        const phase2Idx = headers.indexOf('Phase 2 number current');
+        const idx = (name: string) => headers.indexOf(name);
+        const f = (cols: string[], i: number) => parseFloat(cols[i]) || 0;
 
-        const lookup: Record<string, number> = {};
+        const lookup: Record<string, IpcEntry> = {};
         for (let i = 1; i < lines.length; i++) {
           const cols = lines[i].split(',');
-          const iso3 = cols[countryIdx]?.trim();
+          const iso3 = cols[idx('Country')]?.trim();
           if (!iso3) continue;
-          const p5 = parseFloat(cols[phase5Idx]) || 0;
-          const p4 = parseFloat(cols[phase4Idx]) || 0;
-          const p3 = parseFloat(cols[phase3Idx]) || 0;
-          const p2 = parseFloat(cols[phase2Idx]) || 0;
-
+          const p5 = f(cols, idx('Phase 5 number current'));
+          const p4 = f(cols, idx('Phase 4 number current'));
+          const p3 = f(cols, idx('Phase 3 number current'));
+          const p2 = f(cols, idx('Phase 2 number current'));
           let phase = 1;
           if (p5 > 0) phase = 5;
           else if (p4 > 0) phase = 4;
           else if (p3 > 0) phase = 3;
           else if (p2 > 0) phase = 2;
 
-          lookup[iso3] = phase;
+          lookup[iso3] = {
+            phase,
+            dateOfAnalysis: cols[idx('Date of analysis')]?.trim() || '',
+            populationAnalyzed: f(cols, idx('Population analyzed current')),
+            phase3Plus: f(cols, idx('Phase 3+ number current')),
+            phase3PlusPct: f(cols, idx('Phase 3+ percentage current')),
+            phase1: f(cols, idx('Phase 1 number current')),
+            phase1Pct: f(cols, idx('Phase 1 percentage current')),
+            phase2: p2, phase2Pct: f(cols, idx('Phase 2 percentage current')),
+            phase3: p3, phase3Pct: f(cols, idx('Phase 3 percentage current')),
+            phase4: p4, phase4Pct: f(cols, idx('Phase 4 percentage current')),
+            phase5: p5, phase5Pct: f(cols, idx('Phase 5 percentage current')),
+          };
         }
         ipcDataRef.current = lookup;
       })
@@ -166,6 +209,44 @@ export const Globe: React.FC<GlobeProps> = ({
     svg.call(zoomBehavior as any);
     svg.call(zoomBehavior.transform as any, zoomIdentity.translate(0, 0).scale(scaleRef.current));
 
+    // IPC hover popup — added after zoom setup so namespace doesn't clash
+    svg
+      .on('mousemove.ipc', (event) => {
+        if (!showFamineOverlayRef.current) return;
+        if (hidePopupTimerRef.current) {
+          clearTimeout(hidePopupTimerRef.current);
+          hidePopupTimerRef.current = null;
+        }
+        const d = select(event.target as Element).datum() as any;
+        const iso3 = d?.properties?.ISO_A3;
+        const entry = iso3 ? ipcDataRef.current[iso3] : null;
+        if (!entry) {
+          // Debounce hide so moving between adjacent IPC countries doesn't flicker
+          hidePopupTimerRef.current = setTimeout(() => setIpcPopup(null), 120);
+          return;
+        }
+        const name = d.properties?.NAME || d.properties?.ADMIN || iso3;
+        setIpcPopup({ iso3, name, entry, x: event.clientX, y: event.clientY });
+      })
+      .on('mouseleave.ipc', () => {
+        if (hidePopupTimerRef.current) clearTimeout(hidePopupTimerRef.current);
+        setIpcPopup(null);
+      })
+      .on('touchstart.ipc', (event) => {
+        if (!showFamineOverlayRef.current) return;
+        const touch = event.changedTouches[0];
+        const el = document.elementFromPoint(touch.clientX, touch.clientY);
+        const d = el ? (select(el).datum() as any) : null;
+        const iso3 = d?.properties?.ISO_A3;
+        const entry = iso3 ? ipcDataRef.current[iso3] : null;
+        if (!entry) { setIpcPopup(null); return; }
+        const name = d.properties?.NAME || d.properties?.ADMIN || iso3;
+        // Tap same country again to dismiss; tap different country to switch
+        setIpcPopup(prev =>
+          prev?.iso3 === iso3 ? null : { iso3, name, entry, x: touch.clientX, y: touch.clientY }
+        );
+      });
+
     let frameId: number;
 
     const render = () => {
@@ -201,24 +282,21 @@ export const Globe: React.FC<GlobeProps> = ({
           .attr('stroke', theme === 'dark' ? 'rgba(249,115,22,0.5)' : 'rgba(0,0,0,0.4)')
           .attr('stroke-width', theme === 'dark' ? 0.8 : 1.5);
 
+        // IPC choropleth — fill:none on countries without data removes them from hit-testing,
+        // so event.target on svg mousemove falls through to the landLayer path below (same datum).
         ipcLayer
           .selectAll('path')
           .data(geoData.features)
           .join('path')
           .attr('d', path as any)
           .attr('fill', (d: any) => {
-            if (!showFamineOverlayRef.current) return 'transparent';
+            if (!showFamineOverlayRef.current) return 'none';
             const iso3 = d.properties?.ISO_A3;
-            const phase = ipcDataRef.current[iso3];
-            return phase ? PHASE_COLORS[phase] : 'transparent';
+            const entry = ipcDataRef.current[iso3];
+            return entry ? PHASE_COLORS[entry.phase] : 'none';
           })
-          .attr('fill-opacity', (d: any) => {
-            if (!showFamineOverlayRef.current) return 0;
-            const iso3 = d.properties?.ISO_A3;
-            return ipcDataRef.current[iso3] ? 0.4 : 0;
-          })
-          .attr('stroke', 'none')
-          .attr('pointer-events', 'none');
+          .attr('fill-opacity', 0.4)
+          .attr('stroke', 'none');
 
         // Use ref so this doesn't break the render loop when crises update
         const visibleCrises = activeCrisesRef.current.filter(crisis => {
@@ -300,8 +378,22 @@ export const Globe: React.FC<GlobeProps> = ({
     };
 
     frameId = requestAnimationFrame(render);
-    return () => cancelAnimationFrame(frameId);
+    return () => {
+      cancelAnimationFrame(frameId);
+      if (hidePopupTimerRef.current) clearTimeout(hidePopupTimerRef.current);
+    };
   }, [geoData, rotationSpeed, theme]); // removed activeCrises and onCrisisSelect — handled via refs
+
+  // Compute popup screen position, keeping it within viewport
+  const popupPos = ipcPopup ? (() => {
+    const popW = 252;
+    const popH = 228;
+    let left = ipcPopup.x + 18;
+    let top = ipcPopup.y + 18;
+    if (left + popW > window.innerWidth - 8) left = ipcPopup.x - popW - 18;
+    if (top + popH > window.innerHeight - 8) top = ipcPopup.y - popH - 18;
+    return { left: Math.max(8, left), top: Math.max(8, top) };
+  })() : null;
 
   return (
     <div className={`relative flex items-center justify-center w-full aspect-square group transition-colors duration-500 ${
@@ -347,6 +439,85 @@ export const Globe: React.FC<GlobeProps> = ({
           ? 'bg-[radial-gradient(circle_at_center,rgba(249,115,22,0.08)_0%,transparent_70%)]'
           : 'bg-[radial-gradient(circle_at_center,rgba(0,0,0,0.02)_0%,transparent_70%)]'
       }`} />
+
+      {/* IPC country popup — fixed so it escapes any overflow:hidden ancestors */}
+      {ipcPopup && popupPos && (
+        <div
+          className={`fixed z-[70] backdrop-blur-md border rounded shadow-xl p-3 w-[252px] font-mono text-left ${
+            theme === 'dark'
+              ? 'bg-black/92 border-orange-500/30'
+              : 'bg-white/96 border-stone-300 shadow-stone-300/40'
+          }`}
+          style={{ left: popupPos.left, top: popupPos.top }}
+        >
+          {/* Header row */}
+          <div className="flex justify-between items-start mb-2">
+            <div className="min-w-0 pr-2">
+              <div className={`text-xs font-bold uppercase tracking-wider truncate ${
+                theme === 'dark' ? 'text-orange-400' : 'text-stone-900'
+              }`}>{ipcPopup.name}</div>
+              <div className="text-[10px] opacity-50">{ipcPopup.iso3} · {ipcPopup.entry.dateOfAnalysis}</div>
+            </div>
+            <button
+              onClick={() => setIpcPopup(null)}
+              className={`text-[13px] shrink-0 opacity-40 hover:opacity-100 transition-opacity ${
+                theme === 'dark' ? 'text-orange-300' : 'text-stone-600'
+              }`}
+            >
+              ✕
+            </button>
+          </div>
+
+          {ipcPopup.entry.populationAnalyzed > 0 ? (
+            <>
+              {/* Phase 3+ summary */}
+              <div
+                className="text-[11px] font-bold px-2 py-1 rounded mb-2.5"
+                style={{
+                  background: `${PHASE_COLORS[ipcPopup.entry.phase]}20`,
+                  color: PHASE_COLORS[ipcPopup.entry.phase],
+                  borderLeft: `3px solid ${PHASE_COLORS[ipcPopup.entry.phase]}`,
+                }}
+              >
+                Phase 3+: {(ipcPopup.entry.phase3PlusPct * 100).toFixed(0)}%
+                {' · '}{formatPop(ipcPopup.entry.phase3Plus)} people
+              </div>
+
+              {/* Per-phase bars */}
+              <div className="space-y-1.5">
+                {([1, 2, 3, 4, 5] as const).map(p => {
+                  const num = ipcPopup.entry[`phase${p}` as 'phase1' | 'phase2' | 'phase3' | 'phase4' | 'phase5'];
+                  const pct = (num / ipcPopup.entry.populationAnalyzed) * 100;
+                  return (
+                    <div key={p} className="flex items-center gap-1.5">
+                      <div className={`w-[72px] text-[10px] shrink-0 ${theme === 'dark' ? 'opacity-50' : 'opacity-60'}`}>
+                        P{p} {PHASE_LABELS[p]}
+                      </div>
+                      <div className={`flex-1 h-1.5 rounded-full overflow-hidden ${theme === 'dark' ? 'bg-white/5' : 'bg-stone-100'}`}>
+                        <div
+                          className="h-full rounded-full"
+                          style={{ width: `${Math.min(100, pct)}%`, background: PHASE_COLORS[p] }}
+                        />
+                      </div>
+                      <div className={`w-7 text-[10px] text-right shrink-0 ${theme === 'dark' ? 'opacity-50' : 'opacity-60'}`}>
+                        {pct.toFixed(0)}%
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className={`mt-2 text-[10px] text-right ${theme === 'dark' ? 'opacity-30' : 'opacity-40'}`}>
+                of {formatPop(ipcPopup.entry.populationAnalyzed)} analyzed
+              </div>
+            </>
+          ) : (
+            <div className={`text-[11px] italic ${theme === 'dark' ? 'opacity-40' : 'opacity-50'}`}>
+              No current period data available
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };

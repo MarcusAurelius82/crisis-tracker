@@ -32,7 +32,7 @@ export default function App() {
   const [selectedCrisis, setSelectedCrisis] = useState<Crisis | null>(null);
   const [loading, setLoading] = useState(true);
   const [theme, setTheme] = useState<'dark' | 'light'>('light');
-  const [showFamineOverlay, setShowFamineOverlay] = useState(false);
+  const [showFamineOverlay, setShowFamineOverlay] = useState(true);
   const [logs, setLogs] = useState<{msg: string; time: Date}[]>([
     {msg: 'Initializing monitoring systems...', time: new Date()},
     {msg: 'Connecting to GDACS...', time: new Date()},
