@@ -32,12 +32,22 @@ const PHASE_COLORS: Record<number, string> = {
   5: '#7a1428',
 };
 
+// Plain-English labels for everyday readers
 const PHASE_LABELS: Record<number, string> = {
-  1: 'Minimal',
-  2: 'Stressed',
-  3: 'Crisis',
-  4: 'Emergency',
+  1: 'Well-fed',
+  2: 'At risk',
+  3: 'Food crisis',
+  4: 'Acute hunger',
   5: 'Famine',
+};
+
+// One-line summary headline keyed to worst phase present
+const SITUATION_HEADLINE: Record<number, string> = {
+  1: 'Food situation is largely stable',
+  2: 'Some people are struggling to get enough food',
+  3: 'A food crisis is underway — people urgently need help',
+  4: 'Emergency hunger — people are acutely starving',
+  5: 'Famine — catastrophic starvation is occurring',
 };
 
 function formatPop(n: number): string {
@@ -65,6 +75,7 @@ export const Globe: React.FC<GlobeProps> = ({
   const showFamineOverlayRef = useRef(showFamineOverlay);
   const ipcDataRef = useRef<Record<string, IpcEntry>>({});
   const hidePopupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hasInteractedRef = useRef(false);
 
   const [ipcPopup, setIpcPopup] = useState<{
     iso3: string;
@@ -177,6 +188,7 @@ export const Globe: React.FC<GlobeProps> = ({
       .scaleExtent([150, 5000])
       .on('start', (event) => {
         isInteracting.current = true;
+        hasInteractedRef.current = true;
         lastInteractionTime.current = Date.now();
         prevX = event.transform.x;
         prevY = event.transform.y;
@@ -251,8 +263,7 @@ export const Globe: React.FC<GlobeProps> = ({
 
     const render = () => {
       try {
-        const now = Date.now();
-        if (!isInteracting.current && (now - lastInteractionTime.current > 5000)) {
+        if (!isInteracting.current && !hasInteractedRef.current) {
           rotationRef.current[0] += rotationSpeed;
         }
 
@@ -386,8 +397,8 @@ export const Globe: React.FC<GlobeProps> = ({
 
   // Compute popup screen position, keeping it within viewport
   const popupPos = ipcPopup ? (() => {
-    const popW = 252;
-    const popH = 228;
+    const popW = 272;
+    const popH = 260;
     let left = ipcPopup.x + 18;
     let top = ipcPopup.y + 18;
     if (left + popW > window.innerWidth - 8) left = ipcPopup.x - popW - 18;
@@ -443,20 +454,20 @@ export const Globe: React.FC<GlobeProps> = ({
       {/* IPC country popup — fixed so it escapes any overflow:hidden ancestors */}
       {ipcPopup && popupPos && (
         <div
-          className={`fixed z-[70] backdrop-blur-md border rounded shadow-xl p-3 w-[252px] font-mono text-left ${
+          className={`fixed z-[70] backdrop-blur-md border rounded shadow-xl p-3.5 w-[272px] font-mono text-left ${
             theme === 'dark'
               ? 'bg-black/92 border-orange-500/30'
               : 'bg-white/96 border-stone-300 shadow-stone-300/40'
           }`}
           style={{ left: popupPos.left, top: popupPos.top }}
         >
-          {/* Header row */}
-          <div className="flex justify-between items-start mb-2">
+          {/* Country name + close */}
+          <div className="flex justify-between items-start mb-1.5">
             <div className="min-w-0 pr-2">
               <div className={`text-xs font-bold uppercase tracking-wider truncate ${
                 theme === 'dark' ? 'text-orange-400' : 'text-stone-900'
               }`}>{ipcPopup.name}</div>
-              <div className="text-[10px] opacity-50">{ipcPopup.iso3} · {ipcPopup.entry.dateOfAnalysis}</div>
+              <div className={`text-[10px] opacity-40`}>Food security · {ipcPopup.entry.dateOfAnalysis}</div>
             </div>
             <button
               onClick={() => setIpcPopup(null)}
@@ -470,50 +481,71 @@ export const Globe: React.FC<GlobeProps> = ({
 
           {ipcPopup.entry.populationAnalyzed > 0 ? (
             <>
-              {/* Phase 3+ summary */}
+              {/* Situation headline */}
               <div
-                className="text-[11px] font-bold px-2 py-1 rounded mb-2.5"
+                className="px-2.5 py-2 rounded mb-3 leading-snug"
                 style={{
-                  background: `${PHASE_COLORS[ipcPopup.entry.phase]}20`,
-                  color: PHASE_COLORS[ipcPopup.entry.phase],
+                  background: `${PHASE_COLORS[ipcPopup.entry.phase]}18`,
                   borderLeft: `3px solid ${PHASE_COLORS[ipcPopup.entry.phase]}`,
                 }}
               >
-                Phase 3+: {(ipcPopup.entry.phase3PlusPct * 100).toFixed(0)}%
-                {' · '}{formatPop(ipcPopup.entry.phase3Plus)} people
+                <div
+                  className="text-[11px] font-bold mb-0.5"
+                  style={{ color: PHASE_COLORS[ipcPopup.entry.phase] }}
+                >
+                  {SITUATION_HEADLINE[ipcPopup.entry.phase]}
+                </div>
+                {ipcPopup.entry.phase3Plus > 0 && (
+                  <div className={`text-[11px] ${theme === 'dark' ? 'text-white/70' : 'text-stone-700'}`}>
+                    <span className="font-bold">{formatPop(ipcPopup.entry.phase3Plus)}</span>
+                    {' '}people ({(ipcPopup.entry.phase3PlusPct * 100).toFixed(0)}%) need food assistance
+                  </div>
+                )}
               </div>
 
-              {/* Per-phase bars */}
+              {/* Per-phase breakdown */}
+              <div className={`text-[10px] uppercase tracking-widest mb-1.5 ${theme === 'dark' ? 'opacity-30' : 'opacity-40'}`}>
+                How the population is doing
+              </div>
               <div className="space-y-1.5">
                 {([1, 2, 3, 4, 5] as const).map(p => {
                   const num = ipcPopup.entry[`phase${p}` as 'phase1' | 'phase2' | 'phase3' | 'phase4' | 'phase5'];
                   const pct = (num / ipcPopup.entry.populationAnalyzed) * 100;
-                  return (
-                    <div key={p} className="flex items-center gap-1.5">
-                      <div className={`w-[72px] text-[10px] shrink-0 ${theme === 'dark' ? 'opacity-50' : 'opacity-60'}`}>
-                        P{p} {PHASE_LABELS[p]}
-                      </div>
-                      <div className={`flex-1 h-1.5 rounded-full overflow-hidden ${theme === 'dark' ? 'bg-white/5' : 'bg-stone-100'}`}>
-                        <div
-                          className="h-full rounded-full"
-                          style={{ width: `${Math.min(100, pct)}%`, background: PHASE_COLORS[p] }}
-                        />
-                      </div>
-                      <div className={`w-7 text-[10px] text-right shrink-0 ${theme === 'dark' ? 'opacity-50' : 'opacity-60'}`}>
-                        {pct.toFixed(0)}%
-                      </div>
+                  // Divider before the "needs help" phases
+                  const divider = p === 3 ? (
+                    <div key="divider" className={`text-[9px] uppercase tracking-widest pt-1 pb-0.5 ${theme === 'dark' ? 'opacity-25' : 'opacity-35'}`}>
+                      ↓ need food help
                     </div>
+                  ) : null;
+                  return (
+                    <React.Fragment key={p}>
+                      {divider}
+                      <div className="flex items-center gap-1.5">
+                        <div className={`w-[76px] text-[10px] shrink-0 ${theme === 'dark' ? 'opacity-60' : 'opacity-70'}`}>
+                          {PHASE_LABELS[p]}
+                        </div>
+                        <div className={`flex-1 h-1.5 rounded-full overflow-hidden ${theme === 'dark' ? 'bg-white/5' : 'bg-stone-100'}`}>
+                          <div
+                            className="h-full rounded-full"
+                            style={{ width: `${Math.min(100, pct)}%`, background: PHASE_COLORS[p] }}
+                          />
+                        </div>
+                        <div className={`w-8 text-[10px] text-right shrink-0 tabular-nums ${theme === 'dark' ? 'opacity-50' : 'opacity-60'}`}>
+                          {pct.toFixed(0)}%
+                        </div>
+                      </div>
+                    </React.Fragment>
                   );
                 })}
               </div>
 
-              <div className={`mt-2 text-[10px] text-right ${theme === 'dark' ? 'opacity-30' : 'opacity-40'}`}>
-                of {formatPop(ipcPopup.entry.populationAnalyzed)} analyzed
+              <div className={`mt-2.5 text-[10px] ${theme === 'dark' ? 'opacity-25' : 'opacity-35'}`}>
+                Survey covered {formatPop(ipcPopup.entry.populationAnalyzed)} people
               </div>
             </>
           ) : (
-            <div className={`text-[11px] italic ${theme === 'dark' ? 'opacity-40' : 'opacity-50'}`}>
-              No current period data available
+            <div className={`text-[11px] leading-relaxed ${theme === 'dark' ? 'opacity-40' : 'opacity-50'}`}>
+              No current-period survey data available for this country.
             </div>
           )}
         </div>
